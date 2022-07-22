@@ -1,7 +1,6 @@
 import openpyxl as op
 from matplotlib import pyplot as plt
 
-
 # collects all of the data from models after variable elimination
 # then produces tornado graph using matplotlib
 # arguments:
@@ -21,14 +20,14 @@ class Scenario:
         minYvals = []
         modelNumber = 0
         for col in self.minWS.iter_cols(min_col=3, values_only=True):
-
-            if modelNumber == 0:
-                minXvals.append(self.minWS.cell(column=termNode, row=self.scenarioNum+2).value)
-                minYvals.append(col[0])
-            else:
-                minXvals.append(self.minWS.cell(column=termNode, row=2+((modelNumber*self.totalScenarios)+self.scenarioNum)).value)
-                minYvals.append(col[0])
-            modelNumber += 1
+            if isValidNode(col[0]):
+                if modelNumber == 0:
+                    minXvals.append(self.minWS.cell(column=termNode, row=self.scenarioNum+2).value)
+                    minYvals.append(col[0])
+                else:
+                    minXvals.append(self.minWS.cell(column=termNode, row=2+((modelNumber*self.totalScenarios)+self.scenarioNum)).value)
+                    minYvals.append(col[0])
+                modelNumber += 1
         return [minXvals, minYvals]
 
     def getMaxCases(self, termNode):
@@ -36,23 +35,25 @@ class Scenario:
         maxYvals = []
         modelNumber = 0
         for col in self.maxWS.iter_cols(min_col=3, values_only=True):
-
-            if modelNumber == 0:
-                maxXvals.append(self.maxWS.cell(column=termNode, row=self.scenarioNum + 2).value)
-                maxYvals.append(col[0])
-            else:
-                maxXvals.append(self.maxWS.cell(column=termNode, row=2+((modelNumber*self.totalScenarios)+self.scenarioNum)).value)
-                maxYvals.append(col[0])
-            modelNumber += 1
+            if isValidNode(col[0]):
+                if modelNumber == 0:
+                    maxXvals.append(self.maxWS.cell(column=termNode, row=self.scenarioNum + 2).value)
+                    maxYvals.append(col[0])
+                else:
+                    maxXvals.append(self.maxWS.cell(column=termNode, row=2+((modelNumber*self.totalScenarios)+self.scenarioNum)).value)
+                    maxYvals.append(col[0])
+                modelNumber += 1
         return [maxXvals, maxYvals]
 
 
 def getBaseCases(baseWS, scenarioNum, termNode):
     baseXvals = []
     baseYvals = []
+
     for col in baseWS.iter_cols(min_col=3, values_only=True):
-        baseXvals.append(baseWS.cell(column=termNode, row=scenarioNum+2).value)
-        baseYvals.append(col[0])
+        if isValidNode(col[0]):
+            baseXvals.append(baseWS.cell(column=termNode, row=scenarioNum+2).value)
+            baseYvals.append(col[0])
     return [baseXvals, baseYvals]
 
 def sortModel(min, base, max):
@@ -76,13 +77,42 @@ def sortModel(min, base, max):
 
     return min, base, max
 
+# We only want to plot all nodes that are not action nodes
+# Action nodes can not be evidence since they are predetermined and cannot be set to max or min values
+# so we only want to plot valid nodes
+
+# Thus isValidNode receives a node name as a string
+# and returns true if the node is not an action node or the terminal node
+def isValidNode(node):
+    check = True
+
+    for action in actionList:
+        if node == action:
+            check = False
+    if node == outcomeNode:
+        check = False
+
+    return check
+
 def plotTornado(title, case):
     minCasesUnsorted = case[0]
     baseCasesUnsorted = case[1]
     maxCasesUnsorted = case[2]
+    print("MinCases:", minCasesUnsorted)
+    print()
+    print("BaseCases:", baseCasesUnsorted)
+    print()
+    print("MaxCases:", maxCasesUnsorted)
     y = range(len(minCasesUnsorted[0]))
     y = list(y)
     minCases, baseCases, maxCases = sortModel(minCasesUnsorted, baseCasesUnsorted, maxCasesUnsorted)
+
+    orderedLabelList = []
+    for case in baseCases[1]:
+        if case not in actionList:
+            orderedLabelList.append(case)
+
+
 
     for index in range(len(y)):
         minX = minCases[0][index]
@@ -145,13 +175,18 @@ def plotTornado(title, case):
         plt.title(title)
         plt.xlabel("Outcome Probability")
         plt.ylabel("Node")
-        plt.yticks(y, baseCases[1])
+        plt.yticks(y, orderedLabelList)
         plt.xlim(baseCases[0][0] - 0.25, baseCases[0][0] + 0.25)
         plt.ylim(-1, len(y))
     plt.show()
 
 # Main function of the file, this function calls all of the other functions to generate tornado diagrams
-def getModelOutcomes(numScenarios, minWB, maxWB, ogWB, title, termNode):
+def getModelOutcomes(numScenarios, minWB, maxWB, ogWB, title, termNode, actions, outcome):
+    global actionList
+    global outcomeNode
+    actionList = actions
+    outcomeNode = outcome
+
     baseWS = ogWB["Sheet3"]
     minWS = minWB["Sheet3"]
     maxWS = maxWB["Sheet3"]
